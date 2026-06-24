@@ -1,22 +1,35 @@
+import { handleUpload } from '@vercel/blob/client'
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
-import { uploadMedia } from '@/lib/storage'
 
-export async function POST(req) {
-  const session = await getSession()
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+export async function POST(request) {
+  const body = await request.json()
 
-  const formData = await req.formData()
-  const file = formData.get('file')
+  try {
+    const jsonResponse = await handleUpload({
+      body,
+      request,
+      onBeforeGenerateToken: async () => {
+        const session = await getSession()
+        if (!session) {
+          throw new Error('Unauthorized')
+        }
+        return {
+          addRandomSuffix: true,
+          allowedContentTypes: ['image/*', 'video/*'],
+          maximumSizeInBytes: 100 * 1024 * 1024,
+        }
+      },
+      onUploadCompleted: async () => {
+        // Post metadata is saved separately via /api/posts
+      },
+    })
 
-  if (!file) return NextResponse.json({ error: 'No file provided' }, { status: 400 })
-
-  const bytes = await file.arrayBuffer()
-  const buffer = Buffer.from(bytes)
-
-  const ext = file.name.split('.').pop()
-  const filename = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
-
-  const url = await uploadMedia(buffer, filename, file.type)
-  return NextResponse.json({ url })
+    return NextResponse.json(jsonResponse)
+  } catch (error) {
+    return NextResponse.json(
+      { error: error.message },
+      { status: 400 },
+    )
+  }
 }
