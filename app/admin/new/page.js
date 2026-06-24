@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-
+import { upload } from '@vercel/blob/client'
 export default function NewPost() {
   const [type, setType] = useState('text')
   const [title, setTitle] = useState('')
@@ -38,16 +38,11 @@ export default function NewPost() {
       let mediaUrl = null
 
       if (file) {
-        const formData = new FormData()
-        formData.append('file', file)
-        formData.append('type', type)
-        const uploadRes = await fetch('/api/upload', {
-          method: 'POST',
-          body: formData,
-        })
-        if (!uploadRes.ok) throw new Error('上传文件失败')
-        const uploadData = await uploadRes.json()
-        mediaUrl = uploadData.url
+      const blob = await upload(file.name, file, {
+        access: 'public',
+        handleUploadUrl: '/api/upload',
+      })
+      mediaUrl = blob.url
       }
 
       const postRes = await fetch('/api/posts', {
